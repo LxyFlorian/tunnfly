@@ -1,0 +1,35 @@
+name: tunnfly
+description: "Secure end-to-end encrypted chat application."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase
+  supabase_flutter: ^2.5.0
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Cryptography (E2E encryption: X25519 + AES-256-GCM)
+  cryptography: ^2.7.0
+
+  # Secure local storage (private keys)
+  flutter_secure_storage: ^9.2.2
+
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
