@@ -68,7 +68,11 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final client = ref.read(supabaseClientProvider);
-      final response = await client.from(SupabaseConstants.messagesTable).select().eq('conversation_id', _conversationId).order('created_at');
+      final response = await client
+          .from(SupabaseConstants.messagesTable)
+          .select()
+          .eq('conversation_id', _conversationId)
+          .order('created_at', ascending: true);
 
       final messages = (response as List).map((json) => MessageModel.fromJson(json as Map<String, dynamic>)).toList();
 
