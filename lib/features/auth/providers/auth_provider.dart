@@ -77,7 +77,6 @@ class AuthNotifier extends AsyncNotifier<void> {
   Future<void> signOut() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      await _keyManager.deleteKeyPair();
       await _client.auth.signOut();
     });
   }
