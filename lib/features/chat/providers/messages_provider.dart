@@ -1,9 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/supabase_constants.dart';
 import '../../../core/crypto/crypto_service.dart';
-import '../../../core/crypto/key_manager.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/profile_model.dart';
 import '../models/message_model.dart';
@@ -53,11 +53,14 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
   RealtimeChannel? _channel;
 
   @override
-  Future<List<MessageModel>> build() async => [];
+  Future<List<MessageModel>> build() async {
+    ref.onDispose(() => _channel?.unsubscribe());
+    return [];
+  }
 
   void init(String conversationId) {
     _conversationId = conversationId;
-    _loadMessages();
+    unawaited(_loadMessages());
     _subscribeToRealtime();
   }
 
@@ -134,11 +137,6 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
       'encrypted_content': ciphertext,
       'iv': iv,
     });
-  }
-
-  @override
-  void dispose() {
-    _channel?.unsubscribe();
   }
 }
 
