@@ -46,3 +46,6 @@ app.*.map.json
 
 # Supabase credentials — never commit secrets
 lib/core/constants/supabase_constants.dart
+
+# fichier perso
+todo.md
