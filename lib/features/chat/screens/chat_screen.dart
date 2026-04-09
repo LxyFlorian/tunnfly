@@ -112,7 +112,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     final isMe = msg.senderId == currentUser?.id;
                     return GestureDetector(
                       onLongPressStart: (details) => isMe ? _showMessageOptions(msg, details, isMe) : null,
-                      child: _MessageBubble(text: msg.decryptedContent ?? '[déchiffrement en cours...]', isMe: isMe, time: msg.createdAt),
+                      child: _MessageBubble(
+                        text: msg.decryptedContent ?? '[déchiffrement en cours...]',
+                        isRead: msg.isRead,
+                        isMe: isMe,
+                        time: msg.createdAt,
+                      ),
                     );
                   },
                 );
@@ -157,44 +162,65 @@ class _MessageBubble extends StatelessWidget {
   final String text;
   final bool isMe;
   final DateTime time;
+  final bool isRead;
 
-  const _MessageBubble({required this.text, required this.isMe, required this.time});
+  const _MessageBubble({required this.text, required this.isMe, required this.time, required this.isRead});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final timeStr = DateFormat('HH:mm').format(time.toLocal());
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isMe ? 18 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 18),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(text, style: TextStyle(color: isMe ? colorScheme.onPrimary : colorScheme.onSurface)),
-            const SizedBox(height: 4),
-            Text(
-              timeStr,
-              style: TextStyle(
-                fontSize: 10,
-                color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurface.withValues(alpha: 0.5),
+    return Column(
+      children: [
+        Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 18),
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Text(text, style: TextStyle(color: isMe ? colorScheme.onPrimary : colorScheme.onSurface)),
+                const SizedBox(height: 4),
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+        Visibility(
+          visible: isMe,
+          child: Align(
+            alignment: AlignmentGeometry.centerRight,
+            child: Container(
+              height: 15,
+              width: 15,
+              decoration: BoxDecoration(
+                color: isRead ? colorScheme.primary : colorScheme.surface,
+                border: BoxBorder.all(color: isRead ? colorScheme.primary : colorScheme.outline),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.check, size: 10, color: isRead ? Colors.white : colorScheme.outline),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -348,7 +374,7 @@ class _MessageInput extends StatelessWidget {
                 controller: controller,
                 minLines: 1,
                 maxLines: 4,
-                textInputAction: TextInputAction.send,
+                textInputAction: TextInputAction.newline,
                 onSubmitted: (_) => onSend(),
                 decoration: const InputDecoration(
                   hintText: 'Message chiffré...',
