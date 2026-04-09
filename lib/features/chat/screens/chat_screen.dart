@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:tunnfly/features/chat/models/message_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/messages_provider.dart';
 
@@ -56,6 +58,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _deleteMessage(String messageId) async {
+    try {
+      await _notifier.deleteMessage(messageId);
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesNotifierProvider);
@@ -98,7 +110,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.senderId == currentUser?.id;
-                    return _MessageBubble(text: msg.decryptedContent ?? '[déchiffrement en cours...]', isMe: isMe, time: msg.createdAt);
+                    return GestureDetector(
+                      onLongPressStart: (details) => isMe ? _showMessageOptions(msg, details, isMe) : null,
+                      child: _MessageBubble(text: msg.decryptedContent ?? '[déchiffrement en cours...]', isMe: isMe, time: msg.createdAt),
+                    );
                   },
                 );
               },
@@ -108,6 +123,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+  }
+
+  void _showMessageOptions(MessageModel msg, LongPressStartDetails details, bool isMe) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (_) {
+        return _MessageContextMenu(
+          tapPosition: details.globalPosition,
+          isMe: isMe,
+          onDismiss: () => entry.remove(),
+          onCopy: () {
+            entry.remove();
+            Clipboard.setData(ClipboardData(text: msg.decryptedContent ?? ''));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message copié dans le presse-papiers')));
+          },
+          onShare: msg.decryptedContent != null ? () => entry.remove() : null,
+          onDelete: () {
+            entry.remove();
+            _deleteMessage(msg.id);
+          },
+        );
+      },
+    );
+
+    overlay.insert(entry);
   }
 }
 
@@ -152,6 +194,132 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MessageContextMenu extends StatefulWidget {
+  final Offset tapPosition;
+  final bool isMe;
+  final VoidCallback onDismiss;
+  final VoidCallback onCopy;
+  final VoidCallback? onShare;
+  final VoidCallback onDelete;
+
+  const _MessageContextMenu({
+    required this.tapPosition,
+    required this.isMe,
+    required this.onDismiss,
+    required this.onCopy,
+    this.onShare,
+    required this.onDelete,
+  });
+
+  @override
+  State<_MessageContextMenu> createState() => _MessageContextMenuState();
+}
+
+class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 160));
+    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const menuWidth = 200.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    double top = widget.tapPosition.dy + 10;
+    double left;
+    if (widget.isMe) {
+      left = widget.tapPosition.dx - menuWidth + 16;
+    } else {
+      left = widget.tapPosition.dx - 16;
+    }
+    left = left.clamp(8.0, screenWidth - menuWidth - 8);
+
+    // Estimate menu height (3 items max ≈ 48 * 3 + dividers)
+    const estimatedHeight = 160.0;
+    if (top + estimatedHeight > screenHeight - 24) {
+      top = widget.tapPosition.dy - estimatedHeight - 10;
+    }
+
+    final alignment = widget.isMe ? Alignment.topRight : Alignment.topLeft;
+
+    Widget buildItem(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+      return InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: color ?? colorScheme.onSurface),
+              const SizedBox(width: 12),
+              Text(label, style: TextStyle(fontSize: 15, color: color ?? colorScheme.onSurface)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final divider = Divider(height: 1, color: colorScheme.outlineVariant);
+
+    final children = <Widget>[
+      buildItem(Icons.copy_rounded, 'Copier', widget.onCopy),
+      if (widget.onShare != null) ...[divider, buildItem(Icons.share_rounded, 'Partager', widget.onShare!)],
+      divider,
+      buildItem(Icons.delete_outline, 'Supprimer', widget.onDelete, color: Colors.red),
+    ];
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onDismiss,
+      child: Stack(
+        children: [
+          Positioned(
+            top: top,
+            left: left,
+            child: FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                alignment: alignment,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Material(
+                    elevation: 12,
+                    shadowColor: Colors.black38,
+                    borderRadius: BorderRadius.circular(14),
+                    clipBehavior: Clip.antiAlias,
+                    color: colorScheme.surface,
+                    child: SizedBox(
+                      width: menuWidth,
+                      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

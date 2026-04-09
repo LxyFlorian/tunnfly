@@ -118,6 +118,12 @@ create policy "Participants send messages"
   );
 
 
+-- Only the sender can delete their own messages
+create policy "Users delete their own messages"
+  on public.messages for delete
+  using (auth.uid() = sender_id);
+
+
 -- ── Realtime ─────────────────────────────────────────────────
 -- Enable realtime for the messages table
 alter publication supabase_realtime add table public.messages;

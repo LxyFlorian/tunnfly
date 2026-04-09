@@ -142,6 +142,14 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
       'iv': iv,
     });
   }
+
+  Future<void> deleteMessage(String messageId) async {
+    final client = ref.read(supabaseClientProvider);
+    await client.from(SupabaseConstants.messagesTable).delete().eq('id', messageId);
+    //refresh current state
+    final current = state.value ?? [];
+    state = AsyncData(current.where((m) => m.id != messageId).toList());
+  }
 }
 
 final messagesNotifierProvider = AsyncNotifierProvider<MessagesNotifier, List<MessageModel>>(MessagesNotifier.new);

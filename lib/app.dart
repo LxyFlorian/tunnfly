@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -15,17 +16,15 @@ class TunnflyApp extends ConsumerWidget {
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF6C63FF),
         useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-        ),
+        cupertinoOverrideTheme: const CupertinoThemeData(primaryColor: Color(0xFF6C63FF)),
+        inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
       ),
       darkTheme: ThemeData(
         colorSchemeSeed: const Color(0xFF6C63FF),
         brightness: Brightness.dark,
+        cupertinoOverrideTheme: const CupertinoThemeData(primaryColor: Color(0xFF6C63FF)),
         useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-        ),
+        inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
       ),
       home: const _AuthGate(),
     );
@@ -40,12 +39,8 @@ class _AuthGate extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
 
     return authState.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(
-        body: Center(child: Text('Erreur: $e')),
-      ),
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Erreur: $e'))),
       data: (user) {
         if (user == null) return const LoginScreen();
         return const ConversationsScreen();
