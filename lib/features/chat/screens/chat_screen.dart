@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:tunnfly/features/chat/models/message_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/messages_provider.dart';
+import '../providers/bubble_color_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -91,6 +92,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => _showColorPicker(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -110,6 +117,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.senderId == currentUser?.id;
+                    final bubbleColor = ref.watch(bubbleColorProvider(widget.conversationId));
                     return GestureDetector(
                       onLongPressStart: (details) => isMe ? _showMessageOptions(msg, details, isMe) : null,
                       child: _MessageBubble(
@@ -117,6 +125,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         isRead: msg.isRead,
                         isMe: isMe,
                         time: msg.createdAt,
+                        bubbleColor: bubbleColor,
                       ),
                     );
                   },
@@ -127,6 +136,76 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _MessageInput(controller: _textController, onSend: _sendMessage),
         ],
       ),
+    );
+  }
+
+  void _showColorPicker(BuildContext context) {
+    const colors = [
+      null, // défaut (thème)
+      Color(0xFF6750A4), // violet Material 3
+      Color(0xFF0061A4), // bleu
+      Color(0xFF006E1C), // vert
+      Color(0xFF006A6A), // teal
+      Color(0xFFBA1A1A), // rouge
+      Color(0xFFE65100), // orange
+      Color(0xFFAD1457), // rose
+      Color(0xFF4E6F3C), // olive
+      Color(0xFF37474F), // gris ardoise
+    ];
+
+    final notifier = ref.read(bubbleColorProvider(widget.conversationId).notifier);
+    final current = ref.read(bubbleColorProvider(widget.conversationId));
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        final colorScheme = Theme.of(ctx).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Couleur des bulles', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: colors.map((color) {
+                  final isDefault = color == null;
+                  final displayColor = isDefault ? colorScheme.primary : color;
+                  final isSelected = isDefault ? current == null : current == color;
+                  return GestureDetector(
+                    onTap: () {
+                      if (isDefault) {
+                        notifier.reset();
+                      } else {
+                        notifier.setColor(color);
+                      }
+                      Navigator.of(ctx).pop();
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: displayColor,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: colorScheme.onSurface, width: 3)
+                            : Border.all(color: Colors.transparent, width: 3),
+                      ),
+                      child: isDefault
+                          ? Icon(Icons.refresh, color: colorScheme.onPrimary, size: 20)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -158,18 +237,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
+Color _contrastColor(Color bg) {
+  final luminance = bg.computeLuminance();
+  return luminance > 0.35 ? Colors.black87 : Colors.white;
+}
+
 class _MessageBubble extends StatelessWidget {
   final String text;
   final bool isMe;
   final DateTime time;
   final bool isRead;
+  final Color? bubbleColor;
 
-  const _MessageBubble({required this.text, required this.isMe, required this.time, required this.isRead});
+  const _MessageBubble({required this.text, required this.isMe, required this.time, required this.isRead, this.bubbleColor});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final timeStr = DateFormat('HH:mm').format(time.toLocal());
+    final myBubbleColor = isMe ? (bubbleColor ?? colorScheme.primary) : colorScheme.surfaceContainerHighest;
+    final myTextColor = isMe
+        ? (bubbleColor != null ? _contrastColor(bubbleColor!) : colorScheme.onPrimary)
+        : colorScheme.onSurface;
 
     return Column(
       children: [
@@ -180,7 +269,7 @@ class _MessageBubble extends StatelessWidget {
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+              color: myBubbleColor,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(18),
                 topRight: const Radius.circular(18),
@@ -191,13 +280,13 @@ class _MessageBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
-                Text(text, style: TextStyle(color: isMe ? colorScheme.onPrimary : colorScheme.onSurface)),
+                Text(text, style: TextStyle(color: myTextColor)),
                 const SizedBox(height: 4),
                 Text(
                   timeStr,
                   style: TextStyle(
                     fontSize: 10,
-                    color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: myTextColor.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -212,11 +301,11 @@ class _MessageBubble extends StatelessWidget {
               height: 15,
               width: 15,
               decoration: BoxDecoration(
-                color: isRead ? colorScheme.primary : Colors.transparent,
-                border: Border.all(color: isRead ? colorScheme.primary : colorScheme.outline),
+                color: isRead ? myBubbleColor : Colors.transparent,
+                border: Border.all(color: isRead ? myBubbleColor : colorScheme.outline),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.check, size: 10, color: isRead ? colorScheme.onPrimary : colorScheme.outline),
+              child: Icon(Icons.check, size: 10, color: isRead ? myTextColor : colorScheme.outline),
             ),
           ),
         ),
