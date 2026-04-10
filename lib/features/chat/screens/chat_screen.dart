@@ -92,12 +92,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.palette_outlined),
-            onPressed: () => _showColorPicker(context),
-          ),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.palette_outlined), onPressed: () => _showColorPicker(context))],
       ),
       body: Column(
         children: [
@@ -191,13 +186,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       decoration: BoxDecoration(
                         color: displayColor,
                         shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: colorScheme.onSurface, width: 3)
-                            : Border.all(color: Colors.transparent, width: 3),
+                        border: isSelected ? Border.all(color: colorScheme.onSurface, width: 3) : Border.all(color: Colors.transparent, width: 3),
                       ),
-                      child: isDefault
-                          ? Icon(Icons.refresh, color: colorScheme.onPrimary, size: 20)
-                          : null,
+                      child: isDefault ? Icon(Icons.refresh, color: colorScheme.onPrimary, size: 20) : null,
                     ),
                   );
                 }).toList(),
@@ -256,9 +247,7 @@ class _MessageBubble extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final timeStr = DateFormat('HH:mm').format(time.toLocal());
     final myBubbleColor = isMe ? (bubbleColor ?? colorScheme.primary) : colorScheme.surfaceContainerHighest;
-    final myTextColor = isMe
-        ? (bubbleColor != null ? _contrastColor(bubbleColor!) : colorScheme.onPrimary)
-        : colorScheme.onSurface;
+    final myTextColor = isMe ? (bubbleColor != null ? _contrastColor(bubbleColor!) : colorScheme.onPrimary) : colorScheme.onSurface;
 
     return Column(
       children: [
@@ -282,13 +271,7 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 Text(text, style: TextStyle(color: myTextColor)),
                 const SizedBox(height: 4),
-                Text(
-                  timeStr,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: myTextColor.withValues(alpha: 0.7),
-                  ),
-                ),
+                Text(timeStr, style: TextStyle(fontSize: 10, color: myTextColor.withValues(alpha: 0.7))),
               ],
             ),
           ),
@@ -458,6 +441,8 @@ class _MessageInput extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            IconButton.outlined(onPressed: () {}, icon: const Icon(Icons.add), padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: controller,
