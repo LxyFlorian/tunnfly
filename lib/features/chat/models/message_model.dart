@@ -5,6 +5,7 @@ class MessageModel {
   final String encryptedContent;
   final String iv;
   final DateTime createdAt;
+  final bool isRead;
   // Set after decryption on the client
   String? decryptedContent;
 
@@ -16,6 +17,7 @@ class MessageModel {
     required this.iv,
     required this.createdAt,
     this.decryptedContent,
+    this.isRead = false,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
@@ -26,13 +28,22 @@ class MessageModel {
       encryptedContent: json['encrypted_content'] as String,
       iv: json['iv'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
+      isRead: json['is_read'] as bool? ?? false,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'conversation_id': conversationId,
-        'sender_id': senderId,
-        'encrypted_content': encryptedContent,
-        'iv': iv,
-      };
+  Map<String, dynamic> toJson() => {'conversation_id': conversationId, 'sender_id': senderId, 'encrypted_content': encryptedContent, 'iv': iv};
+
+  copyWith({String? decryptedContent, bool? isRead}) {
+    return MessageModel(
+      id: id,
+      conversationId: conversationId,
+      senderId: senderId,
+      encryptedContent: encryptedContent,
+      iv: iv,
+      createdAt: createdAt,
+      decryptedContent: decryptedContent ?? this.decryptedContent,
+      isRead: isRead ?? this.isRead,
+    );
+  }
 }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:tunnfly/features/chat/models/message_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/messages_provider.dart';
+import '../providers/bubble_color_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -56,6 +59,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _deleteMessage(String messageId) async {
+    try {
+      await _notifier.deleteMessage(messageId);
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesNotifierProvider);
@@ -79,6 +92,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => _showColorPicker(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -98,7 +117,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.senderId == currentUser?.id;
-                    return _MessageBubble(text: msg.decryptedContent ?? '[déchiffrement en cours...]', isMe: isMe, time: msg.createdAt);
+                    final bubbleColor = ref.watch(bubbleColorProvider(widget.conversationId));
+                    return GestureDetector(
+                      onLongPressStart: (details) => isMe ? _showMessageOptions(msg, details, isMe) : null,
+                      child: _MessageBubble(
+                        text: msg.decryptedContent ?? '[déchiffrement en cours...]',
+                        isRead: msg.isRead,
+                        isMe: isMe,
+                        time: msg.createdAt,
+                        bubbleColor: bubbleColor,
+                      ),
+                    );
                   },
                 );
               },
@@ -109,49 +138,303 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     );
   }
+
+  void _showColorPicker(BuildContext context) {
+    const colors = [
+      null, // défaut (thème)
+      Color(0xFF6750A4), // violet Material 3
+      Color(0xFF0061A4), // bleu
+      Color(0xFF006E1C), // vert
+      Color(0xFF006A6A), // teal
+      Color(0xFFBA1A1A), // rouge
+      Color(0xFFE65100), // orange
+      Color(0xFFAD1457), // rose
+      Color(0xFF4E6F3C), // olive
+      Color(0xFF37474F), // gris ardoise
+    ];
+
+    final notifier = ref.read(bubbleColorProvider(widget.conversationId).notifier);
+    final current = ref.read(bubbleColorProvider(widget.conversationId));
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        final colorScheme = Theme.of(ctx).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Couleur des bulles', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: colors.map((color) {
+                  final isDefault = color == null;
+                  final displayColor = isDefault ? colorScheme.primary : color;
+                  final isSelected = isDefault ? current == null : current == color;
+                  return GestureDetector(
+                    onTap: () {
+                      if (isDefault) {
+                        notifier.reset();
+                      } else {
+                        notifier.setColor(color);
+                      }
+                      Navigator.of(ctx).pop();
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: displayColor,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: colorScheme.onSurface, width: 3)
+                            : Border.all(color: Colors.transparent, width: 3),
+                      ),
+                      child: isDefault
+                          ? Icon(Icons.refresh, color: colorScheme.onPrimary, size: 20)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMessageOptions(MessageModel msg, LongPressStartDetails details, bool isMe) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (_) {
+        return _MessageContextMenu(
+          tapPosition: details.globalPosition,
+          isMe: isMe,
+          onDismiss: () => entry.remove(),
+          onCopy: () {
+            entry.remove();
+            Clipboard.setData(ClipboardData(text: msg.decryptedContent ?? ''));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message copié dans le presse-papiers')));
+          },
+          onShare: msg.decryptedContent != null ? () => entry.remove() : null,
+          onDelete: () {
+            entry.remove();
+            _deleteMessage(msg.id);
+          },
+        );
+      },
+    );
+
+    overlay.insert(entry);
+  }
+}
+
+Color _contrastColor(Color bg) {
+  final luminance = bg.computeLuminance();
+  return luminance > 0.35 ? Colors.black87 : Colors.white;
 }
 
 class _MessageBubble extends StatelessWidget {
   final String text;
   final bool isMe;
   final DateTime time;
+  final bool isRead;
+  final Color? bubbleColor;
 
-  const _MessageBubble({required this.text, required this.isMe, required this.time});
+  const _MessageBubble({required this.text, required this.isMe, required this.time, required this.isRead, this.bubbleColor});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final timeStr = DateFormat('HH:mm').format(time.toLocal());
+    final myBubbleColor = isMe ? (bubbleColor ?? colorScheme.primary) : colorScheme.surfaceContainerHighest;
+    final myTextColor = isMe
+        ? (bubbleColor != null ? _contrastColor(bubbleColor!) : colorScheme.onPrimary)
+        : colorScheme.onSurface;
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isMe ? 18 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 18),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(text, style: TextStyle(color: isMe ? colorScheme.onPrimary : colorScheme.onSurface)),
-            const SizedBox(height: 4),
-            Text(
-              timeStr,
-              style: TextStyle(
-                fontSize: 10,
-                color: isMe ? colorScheme.onPrimary.withValues(alpha: 0.7) : colorScheme.onSurface.withValues(alpha: 0.5),
+    return Column(
+      children: [
+        Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: myBubbleColor,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 18),
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Text(text, style: TextStyle(color: myTextColor)),
+                const SizedBox(height: 4),
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: myTextColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
+        Visibility(
+          visible: isMe,
+          child: Align(
+            alignment: AlignmentGeometry.centerRight,
+            child: Container(
+              height: 15,
+              width: 15,
+              decoration: BoxDecoration(
+                color: isRead ? myBubbleColor : Colors.transparent,
+                border: Border.all(color: isRead ? myBubbleColor : colorScheme.outline),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.check, size: 10, color: isRead ? myTextColor : colorScheme.outline),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MessageContextMenu extends StatefulWidget {
+  final Offset tapPosition;
+  final bool isMe;
+  final VoidCallback onDismiss;
+  final VoidCallback onCopy;
+  final VoidCallback? onShare;
+  final VoidCallback onDelete;
+
+  const _MessageContextMenu({
+    required this.tapPosition,
+    required this.isMe,
+    required this.onDismiss,
+    required this.onCopy,
+    this.onShare,
+    required this.onDelete,
+  });
+
+  @override
+  State<_MessageContextMenu> createState() => _MessageContextMenuState();
+}
+
+class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 160));
+    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const menuWidth = 200.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    double top = widget.tapPosition.dy + 10;
+    double left;
+    if (widget.isMe) {
+      left = widget.tapPosition.dx - menuWidth + 16;
+    } else {
+      left = widget.tapPosition.dx - 16;
+    }
+    left = left.clamp(8.0, screenWidth - menuWidth - 8);
+
+    // Estimate menu height (3 items max ≈ 48 * 3 + dividers)
+    const estimatedHeight = 160.0;
+    if (top + estimatedHeight > screenHeight - 24) {
+      top = widget.tapPosition.dy - estimatedHeight - 10;
+    }
+
+    final alignment = widget.isMe ? Alignment.topRight : Alignment.topLeft;
+
+    Widget buildItem(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+      return InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: color ?? colorScheme.onSurface),
+              const SizedBox(width: 12),
+              Text(label, style: TextStyle(fontSize: 15, color: color ?? colorScheme.onSurface)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final divider = Divider(height: 1, color: colorScheme.outlineVariant);
+
+    final children = <Widget>[
+      buildItem(Icons.copy_rounded, 'Copier', widget.onCopy),
+      if (widget.onShare != null) ...[divider, buildItem(Icons.share_rounded, 'Partager', widget.onShare!)],
+      divider,
+      buildItem(Icons.delete_outline, 'Supprimer', widget.onDelete, color: Colors.red),
+    ];
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onDismiss,
+      child: Stack(
+        children: [
+          Positioned(
+            top: top,
+            left: left,
+            child: FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                alignment: alignment,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Material(
+                    elevation: 12,
+                    shadowColor: Colors.black38,
+                    borderRadius: BorderRadius.circular(14),
+                    clipBehavior: Clip.antiAlias,
+                    color: colorScheme.surface,
+                    child: SizedBox(
+                      width: menuWidth,
+                      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -180,7 +463,7 @@ class _MessageInput extends StatelessWidget {
                 controller: controller,
                 minLines: 1,
                 maxLines: 4,
-                textInputAction: TextInputAction.send,
+                textInputAction: TextInputAction.newline,
                 onSubmitted: (_) => onSend(),
                 decoration: const InputDecoration(
                   hintText: 'Message chiffré...',

@@ -89,6 +89,7 @@ create table if not exists public.messages (
   sender_id          uuid not null references public.profiles (id) on delete cascade,
   encrypted_content  text not null,   -- base64(ciphertext || GCM tag)
   iv                 text not null,   -- base64(12-byte nonce)
+  is_read            boolean not null default false,
   created_at         timestamptz not null default now()
 );
 
@@ -115,6 +116,26 @@ create policy "Participants send messages"
       where c.id = conversation_id
         and (c.participant_1 = auth.uid() or c.participant_2 = auth.uid())
     )
+  );
+
+
+-- Only the sender can delete their own messages
+create policy "Users delete their own messages"
+  on public.messages for delete
+  using (auth.uid() = sender_id);
+
+-- A participant can mark a message as read (only is_read column, not sender's messages)
+create policy "Participants mark messages as read"
+  on public.messages for update
+  using (
+    exists (
+      select 1 from public.conversations c
+      where c.id = conversation_id
+        and (c.participant_1 = auth.uid() or c.participant_2 = auth.uid())
+    )
+  )
+  with check (
+    auth.uid() != sender_id  -- seul le destinataire peut marquer comme lu
   );
 
 

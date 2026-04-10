@@ -75,8 +75,19 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
           .order('created_at', ascending: true);
 
       final messages = (response as List).map((json) => MessageModel.fromJson(json as Map<String, dynamic>)).toList();
+      final decrypted = await _decryptAll(messages);
 
-      return _decryptAll(messages);
+      // Marquer tous les messages non lus de l'autre utilisateur comme lus
+      final user = ref.read(currentUserProvider);
+      if (user != null) {
+        final unreadIds = decrypted.where((m) => m.senderId != user.id && !m.isRead).map((m) => m.id).toList();
+        if (unreadIds.isNotEmpty) {
+          await client.from(SupabaseConstants.messagesTable).update({'is_read': true}).inFilter('id', unreadIds);
+          return decrypted.map((m) => unreadIds.contains(m.id) ? (m.copyWith(isRead: true) as MessageModel) : m).toList();
+        }
+      }
+
+      return decrypted;
     });
   }
 
@@ -118,7 +129,29 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
             }
 
             final current = state.value ?? [];
-            state = AsyncData([...current, newMsg]);
+            final user = ref.read(currentUserProvider);
+
+            // Marquer immédiatement comme lu si c'est un message reçu
+            if (user != null && newMsg.senderId != user.id && !newMsg.isRead) {
+              await client.from(SupabaseConstants.messagesTable).update({'is_read': true}).eq('id', newMsg.id);
+              final read = newMsg.copyWith(isRead: true) as MessageModel;
+              read.decryptedContent = newMsg.decryptedContent;
+              state = AsyncData([...current, read]);
+            } else {
+              state = AsyncData([...current, newMsg]);
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: SupabaseConstants.messagesTable,
+          filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'conversation_id', value: _conversationId),
+          callback: (payload) {
+            final updatedId = payload.newRecord['id'] as String;
+            final isRead = payload.newRecord['is_read'] as bool? ?? false;
+            final current = state.value ?? [];
+            state = AsyncData(current.map((m) => m.id == updatedId ? (m.copyWith(isRead: isRead) as MessageModel) : m).toList());
           },
         )
         .subscribe();
@@ -141,6 +174,22 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
       'encrypted_content': ciphertext,
       'iv': iv,
     });
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final client = ref.read(supabaseClientProvider);
+    await client.from(SupabaseConstants.messagesTable).delete().eq('id', messageId);
+    //refresh current state
+    final current = state.value ?? [];
+    state = AsyncData(current.where((m) => m.id != messageId).toList());
+  }
+
+  Future<void> markAsRead(String messageId) async {
+    final client = ref.read(supabaseClientProvider);
+    await client.from(SupabaseConstants.messagesTable).update({'is_read': true}).eq('id', messageId);
+    //update current state
+    final current = state.value ?? [];
+    state = AsyncData(current.map((m) => m.id == messageId ? (m.copyWith(isRead: true) as MessageModel) : m).toList());
   }
 }
 
