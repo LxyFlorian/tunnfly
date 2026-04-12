@@ -176,6 +176,34 @@ class MessagesNotifier extends AsyncNotifier<List<MessageModel>> {
     });
   }
 
+  Future<void> editMessage(String messageId, String newPlainText) async {
+    final sharedSecret = await ref.read(sharedSecretProvider(_conversationId).future);
+    if (sharedSecret == null) throw Exception('Clé partagée introuvable');
+
+    final cryptoService = ref.read(cryptoServiceProvider);
+    final (:ciphertext, :iv) = await cryptoService.encryptMessage(plaintext: newPlainText, sharedSecret: sharedSecret);
+
+    final client = ref.read(supabaseClientProvider);
+    await client.from(SupabaseConstants.messagesTable).update({'encrypted_content': ciphertext, 'iv': iv}).eq('id', messageId);
+
+    final current = state.value ?? [];
+    state = AsyncData(
+      current.map((m) {
+        if (m.id != messageId) return m;
+        return MessageModel(
+          id: m.id,
+          conversationId: m.conversationId,
+          senderId: m.senderId,
+          encryptedContent: ciphertext,
+          iv: iv,
+          createdAt: m.createdAt,
+          isRead: m.isRead,
+          decryptedContent: newPlainText,
+        );
+      }).toList(),
+    );
+  }
+
   Future<void> deleteMessage(String messageId) async {
     final client = ref.read(supabaseClientProvider);
     await client.from(SupabaseConstants.messagesTable).delete().eq('id', messageId);

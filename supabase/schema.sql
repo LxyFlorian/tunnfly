@@ -124,6 +124,12 @@ create policy "Users delete their own messages"
   on public.messages for delete
   using (auth.uid() = sender_id);
 
+-- Only the sender can edit the content of their own messages
+create policy "Sender edits own messages"
+  on public.messages for update
+  using (auth.uid() = sender_id)
+  with check (auth.uid() = sender_id);
+
 -- A participant can mark a message as read (only is_read column, not sender's messages)
 create policy "Participants mark messages as read"
   on public.messages for update

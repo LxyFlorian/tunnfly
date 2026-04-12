@@ -17,7 +17,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   late final MessagesNotifier _notifier;
@@ -25,15 +25,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _notifier = ref.read(messagesNotifierProvider.notifier);
     Future.microtask(() => _notifier.init(widget.conversationId));
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom;
+    if (bottomInset > 0) _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -69,6 +77,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _editMessage(MessageModel msg) async {
+    final controller = TextEditingController(text: msg.decryptedContent ?? '');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Modifier le message'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 1,
+          maxLines: 4,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Enregistrer')),
+        ],
+      ),
+    );
+    final newText = controller.text.trim();
+
+    if (confirmed != true) return;
+    if (newText.isEmpty || newText == msg.decryptedContent) return;
+
+    try {
+      await _notifier.editMessage(msg.id, newText);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesNotifierProvider);
@@ -97,35 +137,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: messagesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Erreur: $e')),
-              data: (messages) {
-                if (messages.isEmpty) {
-                  return const Center(child: Text('Envoyez un premier message chiffré'));
-                }
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.opaque,
+              child: messagesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Erreur: $e')),
+                data: (messages) {
+                  if (messages.isEmpty) {
+                    return const Center(child: Text('Envoyez un premier message chiffré'));
+                  }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isMe = msg.senderId == currentUser?.id;
-                    final bubbleColor = ref.watch(bubbleColorProvider(widget.conversationId));
-                    return GestureDetector(
-                      onLongPressStart: (details) => isMe ? _showMessageOptions(msg, details, isMe) : null,
-                      child: _MessageBubble(
-                        text: msg.decryptedContent ?? '[déchiffrement en cours...]',
-                        isRead: msg.isRead,
-                        isMe: isMe,
-                        time: msg.createdAt,
-                        bubbleColor: bubbleColor,
-                      ),
-                    );
-                  },
-                );
-              },
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final isMe = msg.senderId == currentUser?.id;
+                      final bubbleColor = ref.watch(bubbleColorProvider(widget.conversationId));
+                      return GestureDetector(
+                        onLongPressStart: (details) => isMe ? _showMessageOptions(msg, details, isMe) : null,
+                        child: _MessageBubble(
+                          text: msg.decryptedContent ?? '[déchiffrement en cours...]',
+                          isRead: msg.isRead,
+                          isMe: isMe,
+                          time: msg.createdAt,
+                          bubbleColor: bubbleColor,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
           _MessageInput(controller: _textController, onSend: _sendMessage),
@@ -220,6 +264,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             entry.remove();
             _deleteMessage(msg.id);
           },
+          onEdit: () {
+            entry.remove();
+            _editMessage(msg);
+          },
         );
       },
     );
@@ -304,6 +352,7 @@ class _MessageContextMenu extends StatefulWidget {
   final VoidCallback onCopy;
   final VoidCallback? onShare;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   const _MessageContextMenu({
     required this.tapPosition,
@@ -312,6 +361,7 @@ class _MessageContextMenu extends StatefulWidget {
     required this.onCopy,
     this.onShare,
     required this.onDelete,
+    required this.onEdit,
   });
 
   @override
@@ -382,6 +432,8 @@ class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTic
 
     final children = <Widget>[
       buildItem(Icons.copy_rounded, 'Copier', widget.onCopy),
+      divider,
+      buildItem(Icons.edit, 'Modifier', widget.onEdit),
       if (widget.onShare != null) ...[divider, buildItem(Icons.share_rounded, 'Partager', widget.onShare!)],
       divider,
       buildItem(Icons.delete_outline, 'Supprimer', widget.onDelete, color: Colors.red),
