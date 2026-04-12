@@ -70,7 +70,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   Future<void> _deleteMessage(String messageId) async {
     try {
       await _notifier.deleteMessage(messageId);
-      _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Theme.of(context).colorScheme.error));
@@ -82,14 +81,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Modifier le message'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          minLines: 1,
-          maxLines: 4,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
+        title: const Text('Modifier'),
+        content: TextField(controller: controller, autofocus: true, minLines: 1, maxLines: 4),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
           FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Enregistrer')),
@@ -113,8 +106,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesNotifierProvider);
     final currentUser = ref.watch(currentUserProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    // Scroll when new messages arrive
     messagesAsync.whenData((_) => _scrollToBottom());
 
     return Scaffold(
@@ -123,16 +116,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.otherUsername),
-            const Row(
+            Row(
               children: [
-                Icon(Icons.lock, size: 12),
-                SizedBox(width: 4),
-                Text('Chiffré de bout en bout', style: TextStyle(fontSize: 11, fontWeight: FontWeight.normal)),
+                Icon(Icons.lock, size: 10, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 3),
+                Text(
+                  'Chiffré de bout en bout',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.normal, color: colorScheme.onSurfaceVariant),
+                ),
               ],
             ),
           ],
         ),
-        actions: [IconButton(icon: const Icon(Icons.palette_outlined), onPressed: () => _showColorPicker(context))],
+        actions: [
+          IconButton(
+            icon: Icon(Icons.palette_outlined, color: colorScheme.onSurfaceVariant),
+            onPressed: () => _showColorPicker(context),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: colorScheme.outlineVariant),
+        ),
       ),
       body: Column(
         children: [
@@ -145,7 +150,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 error: (e, _) => Center(child: Text('Erreur: $e')),
                 data: (messages) {
                   if (messages.isEmpty) {
-                    return const Center(child: Text('Envoyez un premier message chiffré'));
+                    return Center(
+                      child: Text('Envoyez un premier message chiffré', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    );
                   }
 
                   return ListView.builder(
@@ -180,16 +187,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   void _showColorPicker(BuildContext context) {
     const colors = [
-      null, // défaut (thème)
-      Color(0xFF6750A4), // violet Material 3
-      Color(0xFF0061A4), // bleu
-      Color(0xFF006E1C), // vert
-      Color(0xFF006A6A), // teal
-      Color(0xFFBA1A1A), // rouge
-      Color(0xFFE65100), // orange
-      Color(0xFFAD1457), // rose
-      Color(0xFF4E6F3C), // olive
-      Color(0xFF37474F), // gris ardoise
+      null,
+      Color(0xFF6750A4),
+      Color(0xFF0061A4),
+      Color(0xFF006E1C),
+      Color(0xFF006A6A),
+      Color(0xFFBA1A1A),
+      Color(0xFFE65100),
+      Color(0xFFAD1457),
+      Color(0xFF4E6F3C),
+      Color(0xFF37474F),
     ];
 
     final notifier = ref.read(bubbleColorProvider(widget.conversationId).notifier);
@@ -197,7 +204,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) {
         final colorScheme = Theme.of(ctx).colorScheme;
         return Padding(
@@ -206,7 +213,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Couleur des bulles', style: Theme.of(ctx).textTheme.titleMedium),
+              Text('Couleur des bulles', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 20),
               Wrap(
                 spacing: 12,
@@ -230,9 +237,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                       decoration: BoxDecoration(
                         color: displayColor,
                         shape: BoxShape.circle,
-                        border: isSelected ? Border.all(color: colorScheme.onSurface, width: 3) : Border.all(color: Colors.transparent, width: 3),
+                        border: isSelected ? Border.all(color: colorScheme.onSurface, width: 2.5) : Border.all(color: Colors.transparent, width: 2.5),
                       ),
-                      child: isDefault ? Icon(Icons.refresh, color: colorScheme.onPrimary, size: 20) : null,
+                      child: isDefault ? Icon(Icons.refresh, color: colorScheme.onPrimary, size: 18) : null,
                     ),
                   );
                 }).toList(),
@@ -257,7 +264,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           onCopy: () {
             entry.remove();
             Clipboard.setData(ClipboardData(text: msg.decryptedContent ?? ''));
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message copié dans le presse-papiers')));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message copié')));
           },
           onShare: msg.decryptedContent != null ? () => entry.remove() : null,
           onDelete: () {
@@ -277,8 +284,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 }
 
 Color _contrastColor(Color bg) {
-  final luminance = bg.computeLuminance();
-  return luminance > 0.35 ? Colors.black87 : Colors.white;
+  return bg.computeLuminance() > 0.35 ? Colors.black87 : Colors.white;
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -294,53 +300,54 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final timeStr = DateFormat('HH:mm').format(time.toLocal());
-    final myBubbleColor = isMe ? (bubbleColor ?? colorScheme.primary) : colorScheme.surfaceContainerHighest;
-    final myTextColor = isMe ? (bubbleColor != null ? _contrastColor(bubbleColor!) : colorScheme.onPrimary) : colorScheme.onSurface;
+    final bubbleColor = isMe ? (this.bubbleColor ?? colorScheme.primary) : colorScheme.surfaceContainerHighest;
+    final textColor = isMe ? (this.bubbleColor != null ? _contrastColor(this.bubbleColor!) : colorScheme.onPrimary) : colorScheme.onSurface;
 
-    return Column(
-      children: [
-        Align(
-          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: myBubbleColor,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(isMe ? 18 : 4),
-                bottomRight: Radius.circular(isMe ? 4 : 18),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                Text(text, style: TextStyle(color: myTextColor)),
-                const SizedBox(height: 4),
-                Text(timeStr, style: TextStyle(fontSize: 10, color: myTextColor.withValues(alpha: 0.7))),
-              ],
-            ),
-          ),
-        ),
-        Visibility(
-          visible: isMe,
-          child: Align(
-            alignment: AlignmentGeometry.centerRight,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Align(
+            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
-              height: 15,
-              width: 15,
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isRead ? myBubbleColor : Colors.transparent,
-                border: Border.all(color: isRead ? myBubbleColor : colorScheme.outline),
-                shape: BoxShape.circle,
+                color: bubbleColor,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isMe ? 18 : 4),
+                  bottomRight: Radius.circular(isMe ? 4 : 18),
+                ),
               ),
-              child: Icon(Icons.check, size: 10, color: isRead ? myTextColor : colorScheme.outline),
+              child: Column(
+                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  Text(text, style: TextStyle(color: textColor, fontSize: 15, height: 1.4)),
+                  const SizedBox(height: 3),
+                  Text(timeStr, style: TextStyle(fontSize: 10, color: textColor.withValues(alpha: 0.55))),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+          if (isMe)
+            Padding(
+              padding: const EdgeInsets.only(top: 3, right: 2),
+              child: Container(
+                height: 14,
+                width: 14,
+                decoration: BoxDecoration(
+                  color: isRead ? bubbleColor : Colors.transparent,
+                  border: Border.all(color: isRead ? bubbleColor : colorScheme.outline, width: 1.5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.check, size: 9, color: isRead ? textColor : colorScheme.outline),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -377,7 +384,7 @@ class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTic
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 160));
-    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _scale = Tween<double>(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
     _fade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _controller.forward();
   }
@@ -390,21 +397,15 @@ class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTic
 
   @override
   Widget build(BuildContext context) {
-    const menuWidth = 200.0;
+    const menuWidth = 190.0;
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final colorScheme = Theme.of(context).colorScheme;
 
     double top = widget.tapPosition.dy + 10;
-    double left;
-    if (widget.isMe) {
-      left = widget.tapPosition.dx - menuWidth + 16;
-    } else {
-      left = widget.tapPosition.dx - 16;
-    }
+    double left = widget.isMe ? widget.tapPosition.dx - menuWidth + 16 : widget.tapPosition.dx - 16;
     left = left.clamp(8.0, screenWidth - menuWidth - 8);
 
-    // Estimate menu height (3 items max ≈ 48 * 3 + dividers)
     const estimatedHeight = 160.0;
     if (top + estimatedHeight > screenHeight - 24) {
       top = widget.tapPosition.dy - estimatedHeight - 10;
@@ -413,15 +414,16 @@ class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTic
     final alignment = widget.isMe ? Alignment.topRight : Alignment.topLeft;
 
     Widget buildItem(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+      final itemColor = color ?? colorScheme.onSurface;
       return InkWell(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: color ?? colorScheme.onSurface),
+              Icon(icon, size: 18, color: itemColor.withValues(alpha: 0.8)),
               const SizedBox(width: 12),
-              Text(label, style: TextStyle(fontSize: 15, color: color ?? colorScheme.onSurface)),
+              Text(label, style: TextStyle(fontSize: 14, color: itemColor)),
             ],
           ),
         ),
@@ -433,10 +435,10 @@ class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTic
     final children = <Widget>[
       buildItem(Icons.copy_rounded, 'Copier', widget.onCopy),
       divider,
-      buildItem(Icons.edit, 'Modifier', widget.onEdit),
+      buildItem(Icons.edit_outlined, 'Modifier', widget.onEdit),
       if (widget.onShare != null) ...[divider, buildItem(Icons.share_rounded, 'Partager', widget.onShare!)],
       divider,
-      buildItem(Icons.delete_outline, 'Supprimer', widget.onDelete, color: Colors.red),
+      buildItem(Icons.delete_outline, 'Supprimer', widget.onDelete, color: const Color(0xFFB00020)),
     ];
 
     return GestureDetector(
@@ -455,9 +457,9 @@ class _MessageContextMenuState extends State<_MessageContextMenu> with SingleTic
                 child: GestureDetector(
                   onTap: () {},
                   child: Material(
-                    elevation: 12,
-                    shadowColor: Colors.black38,
-                    borderRadius: BorderRadius.circular(14),
+                    elevation: 8,
+                    shadowColor: Colors.black26,
+                    borderRadius: BorderRadius.circular(12),
                     clipBehavior: Clip.antiAlias,
                     color: colorScheme.surface,
                     child: SizedBox(
@@ -483,18 +485,19 @@ class _MessageInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+        color: colorScheme.surface,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            IconButton.outlined(onPressed: () {}, icon: const Icon(Icons.add), padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-            const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -502,15 +505,37 @@ class _MessageInput extends StatelessWidget {
                 maxLines: 4,
                 textInputAction: TextInputAction.newline,
                 onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(
-                  hintText: 'Message chiffré...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Message',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  fillColor: colorScheme.surfaceContainerHighest,
+                  filled: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            IconButton.filled(onPressed: onSend, icon: const Icon(Icons.send_rounded)),
+            GestureDetector(
+              onTap: onSend,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(color: colorScheme.primary, shape: BoxShape.circle),
+                child: Icon(Icons.arrow_upward_rounded, color: colorScheme.onPrimary, size: 20),
+              ),
+            ),
           ],
         ),
       ),

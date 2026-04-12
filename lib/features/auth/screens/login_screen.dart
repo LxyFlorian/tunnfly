@@ -57,19 +57,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.lock_outline, size: 72),
-                  const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     'Tunnfly',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -1),
                   ),
+                  const SizedBox(height: 6),
                   Text(
                     'Chiffrement de bout en bout',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 40),
                   TextFormField(

@@ -61,8 +61,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.person_add_outlined, size: 64),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _usernameController,
                   textInputAction: TextInputAction.next,

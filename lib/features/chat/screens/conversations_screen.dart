@@ -52,8 +52,8 @@ class ConversationsScreen extends ConsumerWidget {
               return ListTile(
                 leading: CircleAvatar(child: Text(other?.username.substring(0, 1).toUpperCase() ?? '?')),
                 title: Text(other?.username ?? 'Inconnu'),
-                subtitle: const Text('🔒 Chiffré de bout en bout', style: TextStyle(fontSize: 12)),
-                trailing: const Icon(Icons.chevron_right),
+                subtitle: const Text('Chiffré de bout en bout', style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
